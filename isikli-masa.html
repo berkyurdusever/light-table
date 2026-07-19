@@ -21,13 +21,17 @@
     background-size:4px 4px; /* System 7 dither'ı, gece vardiyası */
     font-family:var(--chicago);
     font-size:13px; display:flex; flex-direction:column; overflow:hidden;
+    overscroll-behavior:none;
+  }
+  button, label, h3, .cell, .layerItem, #topbar, #tlControls{
+    -webkit-user-select:none; user-select:none;
   }
   button{
     background:var(--paper); color:var(--ink); border:1px solid var(--ink);
     border-radius:7px; padding:5px 10px; cursor:pointer; font-size:12px;
     font-family:var(--chicago); box-shadow:1px 1px 0 var(--ink);
   }
-  button:hover{background:#2a2b31;}
+  @media (hover:hover){ button:hover{background:#2a2b31;} }
   button:active{transform:translate(1px,1px); box-shadow:none;}
   button{box-shadow:1px 1px 0 #000;}
   button:focus-visible{outline:1px dotted var(--ink); outline-offset:2px;}
@@ -84,10 +88,11 @@
 
   #stage{
     flex:1; display:flex; align-items:center; justify-content:center;
-    min-width:0; padding:14px;
+    min-width:0; min-height:0; padding:14px; overflow:hidden;
   }
   #canvasWrap{position:relative; border:1px solid var(--ink); background:#fff;}
-  #cv{display:block; background:#fff; max-width:100%; max-height:calc(100vh - 250px); cursor:crosshair; touch-action:none;}
+  #cv{display:block; background:#fff; max-width:100%; max-height:calc(100dvh - 250px); cursor:crosshair; touch-action:none;}
+  #canvasWrap{max-width:100%;}
 
   /* ── Katman paneli ─────────────────────── */
   #layerList{display:flex; flex-direction:column; gap:0;}
@@ -207,15 +212,27 @@
 
   /* ── Dokunmatik cihaz uyarlamaları ─────── */
   @media (pointer:coarse){
-    button{padding:9px 13px; font-size:13px;}
+    button{padding:10px 14px; font-size:13px;}
     .cell{padding:5px;}
     .cell.sel{padding:4px;}
-    input[type=range]{min-height:28px;}
+    input[type=range]{min-height:32px;}
+    input[type=number],input[type=text],select{min-height:34px; font-size:13px;}
+    input[type=checkbox]{width:18px; height:18px;}
+    input[type=color]{width:40px; height:32px;}
+    .eye{font-size:17px; padding:2px 4px;}
+    .layerItem{padding:8px 8px; gap:6px;}
+    .layerItem input[type=range]{width:80px;}
+    #jogPad{width:230px; height:44px;}
+    #jogNum{font-size:18px;}
+    .toolgrid button{padding:12px 8px;}
+    .side{width:206px;}
+    .side.right{width:240px;}
+    .modal{width:400px;}
   }
   #stage{touch-action:none; -webkit-user-select:none; user-select:none;}
   #cv{-webkit-touch-callout:none;}
 
-  @media (max-width:900px){ .side{width:150px;} .side.right{width:180px;} }
+  @media (max-width:900px) and (pointer:fine){ .side{width:150px;} .side.right{width:180px;} }
 </style>
 </head>
 <body>
