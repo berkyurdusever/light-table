@@ -141,6 +141,19 @@
   }
   #tlHint{font-size:11px; color:var(--muted);}
 
+  /* ── Geçmiş paneli ─────────────────────── */
+  #histList{
+    display:flex; flex-direction:column; gap:0; margin-top:4px;
+    max-height:160px; overflow-y:auto;
+  }
+  .histItem{
+    font-family:var(--mono); font-size:11px; padding:3px 7px;
+    border:1px solid var(--ink); margin-bottom:-1px; cursor:pointer;
+    background:var(--paper2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .histItem:hover{background:#33343c;}
+  .histItem.redo{opacity:.45; font-style:italic;}
+
   /* ── Jog pedi (elle gezdirme) ──────────── */
   #jogPad{
     position:relative; width:190px; height:36px; flex:0 0 auto;
@@ -280,6 +293,7 @@
         <button data-tool="ellipse">◯ Elips (O)</button>
         <button data-tool="poly">⬠ Çokgen (P)</button>
         <button data-tool="star">★ Yıldız (Y)</button>
+        <button data-tool="lasso">◌ Kement (K)</button>
       </div>
       <div class="row" style="margin-top:8px;gap:8px">
         <label style="display:flex;align-items:center;gap:4px;font-size:11px">
@@ -348,6 +362,8 @@
         <button id="undoBtn" style="flex:1">↶ Geri</button>
         <button id="redoBtn" style="flex:1">↷ İleri</button>
       </div>
+      <div id="histInfo" style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:6px"></div>
+      <div id="histList"></div>
     </div>
   </div>
 
@@ -731,33 +747,106 @@ function cloneCel(src){
   c.getContext("2d").drawImage(src, 0, 0); return c;
 }
 
-/* ── Undo / Redo ─────────────────────────── */
-const undoStack = [], redoStack = [], MAX_UNDO = 50;
-let dirty = false; // kaydedilmemiş değişiklik var mı (kapanış uyarısı için)
+/* ── Undo / Redo: kare bazlı geçmiş ──────── */
+let dirty = false, histSeq = 0;
+const hist = f => f.hist || (f.hist = { undo: [], redo: [] });
 function snapItem(frame, lid){
   const cel = getCel(frame, lid, true);
   return { frame, lid, img: cel.getContext("2d").getImageData(0,0,W,H) };
 }
-function pushUndo(items){
-  undoStack.push(items); redoStack.length = 0; dirty = true;
-  // her giriş W*H*4 bayt ImageData taşır; büyük tuvalde 50 giriş RAM'i bitirir
-  const cap = Math.max(8, Math.min(MAX_UNDO, Math.floor(134217728 / (W * H * 4))));
-  while(undoStack.length > cap) undoStack.shift();
+const histCap = () => Math.max(6, Math.min(60, Math.floor(134217728 / (W * H * 4))));
+function totalHist(){
+  let n = 0;
+  frames.forEach(f => { if(f.hist) n += f.hist.undo.length + f.hist.redo.length; });
+  return n;
 }
-function swapGroup(fromStack, toStack){
-  if(session.on) return; // çok kullanıcılı geri alma v1'de kapalı
-  const group = fromStack.pop(); if(!group) return;
-  const inverse = group.map(it => snapItem(it.frame, it.lid));
-  toStack.push(inverse);
-  const touched = new Set();
-  for(const it of group){
-    getCel(it.frame, it.lid, true).getContext("2d").putImageData(it.img, 0, 0);
-    touched.add(it.frame);
+function trimHistory(){ // bellek bütçesi: en eski kayıt hangi karedeyse oradan düşür
+  while(totalHist() > histCap()){
+    let stack = null, min = Infinity;
+    frames.forEach(f => {
+      const h = f.hist; if(!h) return;
+      if(h.undo.length && h.undo[0].seq < min){ min = h.undo[0].seq; stack = h.undo; }
+      if(h.redo.length && h.redo[0].seq < min){ min = h.redo[0].seq; stack = h.redo; }
+    });
+    if(!stack) break;
+    stack.shift();
   }
-  touched.forEach(f => updateThumb(frames.indexOf(f)));
-  render();
 }
-function clearHistory(){ undoStack.length = 0; redoStack.length = 0; dirty = true; }
+function pushUndo(items, label){
+  dirty = true;
+  const byFrame = new Map(); // çok kareli işlemler (tween) kare kare bölünür
+  for(const it of items){
+    if(!byFrame.has(it.frame)) byFrame.set(it.frame, []);
+    byFrame.get(it.frame).push({ lid: it.lid, img: it.img });
+  }
+  for(const [f, its] of byFrame){
+    const h = hist(f);
+    h.undo.push({ seq: ++histSeq, label: label || "İşlem", items: its });
+    h.redo.length = 0;
+  }
+  trimHistory(); renderHistory();
+}
+function undoCur(){
+  if(session.on) return;
+  if(sel){ cancelSel(); return; } // seçim havadayken geri al = seçimi iptal et
+  if(lassoPts) return;           // kement çizilirken karışma
+  const f = frames[cur], h = hist(f);
+  const g = h.undo.pop();
+  if(!g){ renderHistory(); return; }
+  h.redo.push({ seq: g.seq, label: g.label,
+                items: g.items.map(it => ({ lid: it.lid,
+                  img: getCel(f, it.lid, true).getContext("2d").getImageData(0,0,W,H) })) });
+  g.items.forEach(it => getCel(f, it.lid, true).getContext("2d").putImageData(it.img, 0, 0));
+  updateThumb(cur); render(); renderHistory();
+}
+function redoCur(){
+  if(session.on) return;
+  if(sel || lassoPts) return;
+  const f = frames[cur], h = hist(f);
+  const g = h.redo.pop();
+  if(!g){ renderHistory(); return; }
+  h.undo.push({ seq: g.seq, label: g.label,
+                items: g.items.map(it => ({ lid: it.lid,
+                  img: getCel(f, it.lid, true).getContext("2d").getImageData(0,0,W,H) })) });
+  g.items.forEach(it => getCel(f, it.lid, true).getContext("2d").putImageData(it.img, 0, 0));
+  updateThumb(cur); render(); renderHistory();
+}
+function clearHistory(){
+  frames.forEach(f => delete f.hist);
+  dirty = true; renderHistory();
+}
+let histMemo = "";
+function renderHistory(){
+  const info = document.getElementById("histInfo");
+  if(!info) return; // ilk kurulumda DOM hazır olmayabilir
+  const h = frames[cur] && frames[cur].hist;
+  const u = h ? h.undo.length : 0, r = h ? h.redo.length : 0;
+  const memo = cur + ":" + u + ":" + r + ":" + histSeq + ":" + totalHist();
+  if(memo === histMemo) return; // durum aynıysa DOM'u yeniden kurma
+  histMemo = memo;
+  info.textContent = "Bu kare: " + u + " geri · " + r + " ileri — havuz " +
+                     totalHist() + "/" + histCap();
+  const list = document.getElementById("histList");
+  list.innerHTML = "";
+  if(h){
+    [...h.redo].forEach((g, i) => { // ileri alınabilecekler (soluk, üstte)
+      const el = document.createElement("div");
+      el.className = "histItem redo";
+      el.textContent = "↷ " + g.label;
+      const steps = h.redo.length - i;
+      el.onclick = () => { for(let k = 0; k < steps; k++) redoCur(); };
+      list.appendChild(el);
+    });
+    [...h.undo].reverse().forEach((g, i) => { // en yeni en üstte
+      const el = document.createElement("div");
+      el.className = "histItem";
+      el.textContent = g.label;
+      el.title = "Bu işlemin öncesine dön";
+      el.onclick = () => { for(let k = 0; k <= i; k++) undoCur(); };
+      list.appendChild(el);
+    });
+  }
+}
 window.addEventListener("beforeunload", e => {
   if(dirty){ e.preventDefault(); e.returnValue = ""; } // kaydedilmemiş iş varken kapanış uyarısı
 });
@@ -812,6 +901,25 @@ function render(){
     dctx.globalAlpha = brushAlpha();
     dctx.drawImage(sc, 0, 0);
     dctx.filter = "none"; dctx.globalAlpha = 1;
+  }
+  if(lassoPts && lassoPts.length > 1){ // kement yolu önizlemesi
+    dctx.save();
+    dctx.setLineDash([6, 4]); dctx.lineWidth = 1.5; dctx.strokeStyle = "#f0a33a";
+    dctx.beginPath();
+    lassoPts.forEach((q, i) => i ? dctx.lineTo(q.x, q.y) : dctx.moveTo(q.x, q.y));
+    dctx.stroke(); dctx.restore();
+  }
+  if(sel && frames[cur] === sel.frame){ // yüzen seçim + dönüşüm kutusu
+    dctx.drawImage(sel.img, sel.x, sel.y, sel.w, sel.h);
+    dctx.save();
+    dctx.setLineDash([6, 4]); dctx.lineWidth = 1.5; dctx.strokeStyle = "#f0a33a";
+    dctx.strokeRect(sel.x, sel.y, sel.w, sel.h);
+    dctx.setLineDash([]); dctx.fillStyle = "#f0a33a";
+    const hs = selHitR() * 0.55;
+    [[sel.x, sel.y], [sel.x + sel.w, sel.y],
+     [sel.x + sel.w, sel.y + sel.h], [sel.x, sel.y + sel.h]]
+      .forEach(c => dctx.fillRect(c[0] - hs/2, c[1] - hs/2, hs, hs));
+    dctx.restore();
   }
   document.getElementById("frameReadout").textContent = (cur+1) + " / " + frames.length;
 }
@@ -904,6 +1012,78 @@ function pathStroke(ctx, pts, wpx){
   pts.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
   ctx.stroke();
 }
+/* — kement (lasso) seçimi — */
+let lassoPts = null;  // seçim yolu çizilirken noktalar
+let sel = null;       // yüzen seçim: {img, x, y, w, h, frame, lid}
+let selDrag = null;   // {mode:"move"|"scale", ax, ay, ox, oy}
+function pathOf(pts, ctx){
+  ctx.beginPath();
+  pts.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+  ctx.closePath();
+}
+const selHitR = () => 12 * W / cv.getBoundingClientRect().width; // ekranda ~12px
+function selHit(p){
+  if(!sel) return null;
+  const r = selHitR();
+  const cs = [ [sel.x, sel.y], [sel.x + sel.w, sel.y],
+               [sel.x + sel.w, sel.y + sel.h], [sel.x, sel.y + sel.h] ];
+  for(let i = 0; i < 4; i++){
+    if(Math.hypot(p.x - cs[i][0], p.y - cs[i][1]) < r){
+      const opp = cs[(i + 2) % 4]; // karşı köşe sabit kalır
+      return { mode: "scale", ax: opp[0], ay: opp[1] };
+    }
+  }
+  if(p.x >= sel.x && p.x <= sel.x + sel.w && p.y >= sel.y && p.y <= sel.y + sel.h)
+    return { mode: "move", ox: p.x - sel.x, oy: p.y - sel.y };
+  return null;
+}
+function finishLasso(){
+  const pts = lassoPts; lassoPts = null;
+  const f = strokeFrame, lid = strokeLayer; // hedef, kement başladığı anda kilitli
+  const bail = () => { if(f) hist(f).undo.pop(); renderHistory(); render(); };
+  if(!pts || pts.length < 3 || !f || frames.indexOf(f) < 0) return bail();
+  const cel = f.cels[lid];
+  if(!cel) return bail();
+  let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+  pts.forEach(p => { x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y);
+                     x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y); });
+  x0 = Math.max(0, Math.floor(x0)); y0 = Math.max(0, Math.floor(y0));
+  x1 = Math.min(W, Math.ceil(x1)); y1 = Math.min(H, Math.ceil(y1));
+  const bw = x1 - x0, bh = y1 - y0;
+  if(bw < 2 || bh < 2) return bail();
+  const img = document.createElement("canvas"); img.width = bw; img.height = bh;
+  const ic = img.getContext("2d");
+  ic.save(); ic.translate(-x0, -y0); pathOf(pts, ic); ic.clip();
+  ic.drawImage(cel, 0, 0); ic.restore();
+  const cc = cel.getContext("2d"); // seçilen bölge katmandan kesilir
+  cc.save(); pathOf(pts, cc); cc.clip(); cc.clearRect(0, 0, W, H); cc.restore();
+  sel = { img, x: x0, y: y0, w: bw, h: bh, ox: x0, oy: y0, frame: f, lid };
+  updateThumb(frames.indexOf(f)); render();
+}
+function commitSel(){
+  if(!sel) return;
+  const s = sel; sel = null;
+  getCel(s.frame, s.lid, true).getContext("2d").drawImage(s.img, s.x, s.y, s.w, s.h);
+  const fi = frames.indexOf(s.frame);
+  if(fi >= 0){
+    updateThumb(fi);
+    if(session.on)
+      sesOp({ t: "celImg", f: fi, l: s.lid, img: s.frame.cels[s.lid].toDataURL() });
+  }
+  render();
+}
+function cancelSel(){
+  if(!sel) return;
+  const s = sel; sel = null;
+  const g = hist(s.frame).undo.pop(); // kesme anındaki anlık görüntüyü geri koy
+  if(g) g.items.forEach(it =>
+    getCel(s.frame, it.lid, true).getContext("2d").putImageData(it.img, 0, 0));
+  else getCel(s.frame, s.lid, true).getContext("2d") // kayıt kırpıldıysa içerik kaybolmasın
+         .drawImage(s.img, s.ox, s.oy);
+  const fi = frames.indexOf(s.frame);
+  if(fi >= 0) updateThumb(fi);
+  render(); renderHistory();
+}
 let strokeFrame = null, strokeLayer = null; // vuruş hedefi: kalem indiği anda kilitlenir
 let strokePts = []; // oturum yayını için nokta kaydı [x,y,kalınlık,alfa]
 function commitBuffer(erase){ // tampondaki vuruşu bulanıklık + opaklıkla cel'e işle
@@ -919,8 +1099,21 @@ cv.addEventListener("pointerdown", e => {
   if(playing) stopPlay();
   cv.setPointerCapture(e.pointerId);
   const p = pos(e);
+  const TOOL_LABELS = { brush:"Fırça", eraser:"Silgi", line:"Çizgi", fill:"Dolgu",
+                        rect:"Dikdörtgen", ellipse:"Elips", poly:"Çokgen", star:"Yıldız", lasso:"Kement" };
+  if(tool === "lasso"){
+    if(sel){
+      const h = selHit(p);
+      if(h){ selDrag = h; return; }   // taşı ya da ölçekle
+      commitSel(); return;            // dışına dokunma = uygula
+    }
+    strokeFrame = frames[cur]; strokeLayer = activeLayer;
+    pushUndo([snapItem(strokeFrame, strokeLayer)], "Kement");
+    lassoPts = [p];
+    render(); return;
+  }
   if(tool === "fill"){
-    pushUndo([snapItem(frames[cur], activeLayer)]);
+    pushUndo([snapItem(frames[cur], activeLayer)], "Dolgu");
     floodFill(frames[cur], activeLayer, p.x, p.y,
               document.getElementById("color").value, brushAlpha());
     sesOp({ t: "fill", f: cur, l: activeLayer, x: p.x, y: p.y,
@@ -929,7 +1122,7 @@ cv.addEventListener("pointerdown", e => {
   }
   strokeFrame = frames[cur]; strokeLayer = activeLayer;
   strokePts = [];
-  pushUndo([snapItem(strokeFrame, strokeLayer)]);
+  pushUndo([snapItem(strokeFrame, strokeLayer)], TOOL_LABELS[tool] || "Vuruş");
   drawing = true; last = p; lastPf = pf(e); drawingType = e.pointerType;
   sctx.clearRect(0,0,W,H);
   sctx.fillStyle = sctx.strokeStyle =
@@ -943,6 +1136,17 @@ cv.addEventListener("pointerdown", e => {
   render();
 });
 cv.addEventListener("pointermove", e => {
+  if(selDrag && sel){
+    const p = pos(e);
+    if(selDrag.mode === "move"){
+      sel.x = p.x - selDrag.ox; sel.y = p.y - selDrag.oy;
+    } else {
+      sel.x = Math.min(p.x, selDrag.ax); sel.w = Math.max(4, Math.abs(p.x - selDrag.ax));
+      sel.y = Math.min(p.y, selDrag.ay); sel.h = Math.max(4, Math.abs(p.y - selDrag.ay));
+    }
+    render(); return;
+  }
+  if(lassoPts){ lassoPts.push(pos(e)); render(); return; }
   if(!drawing) return;
   if(tool === "line" || SHAPES.includes(tool)){
     const p = pos(e);
@@ -970,6 +1174,8 @@ cv.addEventListener("pointermove", e => {
   render();
 });
 function endStroke(){
+  if(selDrag){ selDrag = null; return; }
+  if(lassoPts){ finishLasso(); return; }
   if(!drawing) return;
   if((tool === "line" || SHAPES.includes(tool)) && lineStart){
     const pts = tool === "line" ? [lineStart, last] : shapePts(tool, lineStart, last);
@@ -1096,7 +1302,7 @@ document.getElementById("layerDel").onclick = () => {
   frames.forEach(f => delete f.cels[removed.id]);
   sesOp({ t: "layerDel", id: removed.id });
   activeLayer = layers[Math.min(i, layers.length-1)].id;
-  clearHistory();
+  clearHistory(); // silinen katmanın anlık görüntüleri geçersiz
   renderLayers(); refreshAllThumbs(); render();
 };
 document.getElementById("layerUp").onclick = () => moveLayer(+1);
@@ -1125,12 +1331,16 @@ function updateThumb(i){
 }
 function refreshAllThumbs(){ frames.forEach((_,i) => updateThumb(i)); renderTimeline(); }
 function markTimeline(){ // yalnızca vurguyu taşır — oynatma sırasında DOM yeniden kurulmaz
+  if(sel && frames[cur] !== sel.frame) commitSel();
+  renderHistory();
   [...TL.children].forEach((c, i) => c.classList.toggle("sel", i === cur));
-  const sel = TL.children[cur];
-  if(sel) sel.scrollIntoView({ block: "nearest", inline: "nearest" });
+  const selCell = TL.children[cur];
+  if(selCell) selCell.scrollIntoView({ block: "nearest", inline: "nearest" });
   syncScrub();
 }
 function renderTimeline(){
+  if(sel) commitSel();
+  renderHistory();
   TL.innerHTML = "";
   frames.forEach((f, i) => {
     const cell = document.createElement("div");
@@ -1158,20 +1368,20 @@ function renderTimeline(){
       const [m] = frames.splice(from, 1);
       frames.splice(i, 0, m);
       sesOp({ t: "frameMove", from, to: i });
-      cur = i; clearHistory();
+      cur = i;
       renderTimeline(); render();
     });
     TL.appendChild(cell);
   });
-  const sel = TL.children[cur];
-  if(sel) sel.scrollIntoView({ block: "nearest", inline: "nearest" });
+  const selCell = TL.children[cur];
+  if(selCell) selCell.scrollIntoView({ block: "nearest", inline: "nearest" });
   syncScrub();
 }
 document.getElementById("addBlank").onclick = () => {
   if(playing) stopPlay();
   frames.splice(cur + 1, 0, makeFrame());
   sesOp({ t: "frameAdd", at: cur + 1, dup: false });
-  cur++; clearHistory();
+  cur++;
   updateThumb(cur); renderTimeline(); render();
 };
 document.getElementById("addDup").onclick = () => {
@@ -1181,7 +1391,7 @@ document.getElementById("addDup").onclick = () => {
   f.hold = src.hold;
   frames.splice(cur + 1, 0, f);
   sesOp({ t: "frameAdd", at: cur + 1, dup: true, from: cur });
-  cur++; clearHistory();
+  cur++;
   updateThumb(cur); renderTimeline(); render();
 };
 document.getElementById("delFrame").onclick = () => {
@@ -1191,7 +1401,6 @@ document.getElementById("delFrame").onclick = () => {
   frames.splice(cur, 1);
   sesOp({ t: "frameDel", at: cur });
   cur = Math.min(cur, frames.length - 1);
-  clearHistory();
   renderTimeline(); render();
 };
 document.getElementById("holdPlus").onclick = () => {
@@ -1294,6 +1503,7 @@ document.querySelectorAll("[data-tool]").forEach(b => {
   b.onclick = () => setTool(b.dataset.tool);
 });
 function setTool(t){
+  if(sel && t !== "lasso") commitSel();
   tool = t;
   document.querySelectorAll("[data-tool]").forEach(x =>
     x.classList.toggle("active", x.dataset.tool === t));
@@ -1323,8 +1533,8 @@ PALETTE.forEach(hex => {
 });
 
 /* ── Geri / İleri ────────────────────────── */
-document.getElementById("undoBtn").onclick = () => swapGroup(undoStack, redoStack);
-document.getElementById("redoBtn").onclick = () => swapGroup(redoStack, undoStack);
+document.getElementById("undoBtn").onclick = () => undoCur();
+document.getElementById("redoBtn").onclick = () => redoCur();
 
 /* ── Tween ───────────────────────────────── */
 const EASE = {
@@ -1505,7 +1715,7 @@ function applyTween(P){ // P: {start,end,l,dx,dy,rot,scale,ease,keys?}
 
   const snaps = [];
   for(let i = start + 1; i <= end; i++) snaps.push(snapItem(frames[i], P.l));
-  pushUndo(snaps);
+  pushUndo(snaps, "Tween");
 
   const srcCopy = cloneCel(src); // kaynak, ara karelerden etkilenmesin
   for(let i = start + 1; i <= end; i++){
@@ -1618,7 +1828,6 @@ async function importPsd(file){
     added++;
   }
   activeLayer = layers[layers.length - 1].id;
-  clearHistory();
   updateThumb(cur); renderLayers(); renderTimeline(); render();
   return added;
 }
@@ -1872,7 +2081,7 @@ document.getElementById("spGo").onclick = async e => {
 document.getElementById("layerClear").onclick = () => {
   const cel = frames[cur].cels[activeLayer];
   if(!cel) return;
-  pushUndo([snapItem(frames[cur], activeLayer)]);
+  pushUndo([snapItem(frames[cur], activeLayer)], "Temizle");
   cel.getContext("2d").clearRect(0, 0, W, H);
   sesOp({ t: "clear", f: cur, l: activeLayer });
   updateThumb(cur); render();
@@ -1997,10 +2206,10 @@ document.getElementById("loadInput").onchange = async e => {
 function abortStroke(){ // yanlışlıkla başlayan vuruşu geri sar (jest algılandığında)
   if(!drawing) return;
   drawing = false; lineStart = null;
-  const g = undoStack.pop(); // pointerdown'da alınan anlık görüntüyü geri koy
-  if(g) for(const it of g)
-    getCel(it.frame, it.lid, true).getContext("2d").putImageData(it.img, 0, 0);
-  render();
+  const g = strokeFrame && hist(strokeFrame).undo.pop();
+  if(g) for(const it of g.items)
+    getCel(strokeFrame, it.lid, true).getContext("2d").putImageData(it.img, 0, 0);
+  render(); renderHistory();
 }
 let multiTouch = null;
 const fingerCount = touches => // Apple Pencil'ı parmak saymayalım
@@ -2010,6 +2219,12 @@ stage.addEventListener("touchstart", e => {
   const n = fingerCount(e.touches);
   if(n >= 2){
     if(drawing && drawingType === "touch") abortStroke();
+    if(lassoPts){ lassoPts = null; // kazara başlayan kementi geri sar
+      const g = strokeFrame && hist(strokeFrame).undo.pop();
+      if(g) g.items.forEach(it =>
+        getCel(strokeFrame, it.lid, true).getContext("2d").putImageData(it.img, 0, 0));
+      render(); renderHistory();
+    }
     if(!multiTouch) multiTouch = { count: n, t: Date.now(), moved: false,
                                    x: e.touches[0].clientX, y: e.touches[0].clientY };
     else multiTouch.count = Math.max(multiTouch.count, n);
@@ -2026,8 +2241,9 @@ stage.addEventListener("touchend", e => {
   if(!multiTouch || fingerCount(e.touches) > 0) return;
   const mt = multiTouch; multiTouch = null;
   if(mt.moved || Date.now() - mt.t > 350) return; // vuruş değil, hareket/uzun basış
-  if(mt.count === 2) swapGroup(undoStack, redoStack);
-  else if(mt.count >= 3) swapGroup(redoStack, undoStack);
+  if(sel || lassoPts) return; // seçim akışına jest karışmasın (undoCur zaten korumalı, çift sigorta)
+  if(mt.count === 2) undoCur();
+  else if(mt.count >= 3) redoCur();
 });
 
 /* ── Kare taşıma düğmeleri ───────────────── */
@@ -2397,7 +2613,6 @@ function bakeWave(o, img){
     }
     updateThumb(i);
   });
-  clearHistory();
   renderLayers(); renderTimeline(); render();
 }
 document.getElementById("waveApply").onclick = () => {
@@ -2503,7 +2718,6 @@ document.getElementById("impApply").onclick = () => {
     impDraw(ctx, it.img, scale);
   });
   cur = start;
-  clearHistory();
   frames.forEach((_, i) => updateThumb(i));
   renderLayers(); renderTimeline(); render();
   impClose();
@@ -2681,6 +2895,19 @@ async function applyRemoteOp(o){
       if(L){ Object.assign(L, o.p); renderLayers(); refreshAllThumbs(); render(); }
       break;
     }
+    case "celImg": { // kement gibi bileşik işlemlerin sonucu: cel'in tam görüntüsü
+      const frame = frames[o.f];
+      if(frame && layers.find(L => L.id === o.l)){
+        const im = new Image();
+        im.onload = () => {
+          const c = getCel(frame, o.l, true).getContext("2d");
+          c.clearRect(0, 0, W, H); c.drawImage(im, 0, 0);
+          updateThumb(o.f); render();
+        };
+        im.src = o.img;
+      }
+      break;
+    }
     case "resize": doResize(o.w, o.h); break;
     case "tween": applyTween(o.P); break;
     case "wave": {
@@ -2757,11 +2984,16 @@ window.addEventListener("keydown", e => {
   if(!spModal.hidden){ if(e.key === "Escape") spCloseFn(); return; }
   if(!sesModal.hidden){ if(e.key === "Escape") sesModal.hidden = true; return; }
   if(e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
-  if(drawing) return; // vuruş sürerken kare/araç değişikliği vuruşu bozar
+  if(sel){
+    if(e.key === "Escape"){ cancelSel(); return; }
+    if(e.key === "Enter"){ commitSel(); return; }
+    return; // seçim yüzerken diğer kısayollar kilitli
+  }
+  if(drawing || lassoPts) return; // vuruş/kement sürerken kısayol kilidi
   const k = e.key.toLowerCase();
   if(e.ctrlKey || e.metaKey){
-    if(k === "z"){ e.preventDefault(); e.shiftKey ? swapGroup(redoStack, undoStack) : swapGroup(undoStack, redoStack); }
-    if(k === "y"){ e.preventDefault(); swapGroup(redoStack, undoStack); }
+    if(k === "z"){ e.preventDefault(); e.shiftKey ? redoCur() : undoCur(); }
+    if(k === "y"){ e.preventDefault(); redoCur(); }
     return;
   }
   if(k === "b") setTool("brush");
@@ -2772,6 +3004,7 @@ window.addEventListener("keydown", e => {
   else if(k === "o") setTool("ellipse");
   else if(k === "p") setTool("poly");
   else if(k === "y") setTool("star");
+  else if(k === "k") setTool("lasso");
   else if(k === "arrowleft"){ if(cur > 0){ cur--; markTimeline(); render(); } }
   else if(k === "arrowright"){ if(cur < frames.length - 1){ cur++; markTimeline(); render(); } }
   else if(k === " "){ e.preventDefault(); playing ? stopPlay() : startPlay(); }
