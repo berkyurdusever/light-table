@@ -1066,6 +1066,63 @@ const ec = document.createElement("canvas"); ec.width = W; ec.height = H; // sil
 const ectx = ec.getContext("2d");
 const softVal = () => +document.getElementById("softness").value / 100;
 let strokeMaxW = 0; // vuruş boyunca ulaşılan en geniş efektif kalınlık
+const FILTER_OK = (() => { // WebKit 18 öncesi ctx.filter'ı sessizce yok sayar
+  try{
+    const x = document.createElement("canvas").getContext("2d");
+    x.filter = "blur(2px)";
+    return x.filter === "blur(2px)";
+  }catch(e){ return false; }
+})();
+function boxBlurCanvas(canvas, radius){ // filtre desteği yoksa: 3 geçişli kutu blur ≈ Gauss
+  const w = canvas.width, h = canvas.height;
+  const ctx = canvas.getContext("2d");
+  const img = ctx.getImageData(0, 0, w, h), d = img.data;
+  for(let i = 0; i < d.length; i += 4){ // saydam kenarlarda hale olmasın: premultiply
+    const a = d[i+3] / 255;
+    d[i] *= a; d[i+1] *= a; d[i+2] *= a;
+  }
+  const r = Math.max(1, Math.round(radius * 0.55)); // 3 geçiş toplamı ≈ blur(radius)
+  const tmpA = new Float32Array(w * h * 4);
+  const src2 = new Float32Array(d);
+  const pass = (inp, out, W2, H2) => { // yatay koşan-toplam; dikey için transpoze çağrılır
+    for(let y = 0; y < H2; y++){
+      const row = y * W2 * 4;
+      let r0=0,g0=0,b0=0,a0=0;
+      for(let x = -r; x <= r; x++){
+        const xi = Math.min(W2-1, Math.max(0, x)) * 4 + row;
+        r0+=inp[xi]; g0+=inp[xi+1]; b0+=inp[xi+2]; a0+=inp[xi+3];
+      }
+      const n = r*2+1;
+      for(let x = 0; x < W2; x++){
+        const o = row + x*4;
+        out[o]=r0/n; out[o+1]=g0/n; out[o+2]=b0/n; out[o+3]=a0/n;
+        const add = Math.min(W2-1, x+r+1)*4 + row;
+        const sub = Math.max(0, x-r)*4 + row;
+        r0 += inp[add]-inp[sub]; g0 += inp[add+1]-inp[sub+1];
+        b0 += inp[add+2]-inp[sub+2]; a0 += inp[add+3]-inp[sub+3];
+      }
+    }
+  };
+  const transpose = (inp, out, W2, H2) => {
+    for(let y = 0; y < H2; y++) for(let x = 0; x < W2; x++){
+      const s2 = (y*W2+x)*4, t = (x*H2+y)*4;
+      out[t]=inp[s2]; out[t+1]=inp[s2+1]; out[t+2]=inp[s2+2]; out[t+3]=inp[s2+3];
+    }
+  };
+  let A = src2, B = tmpA;
+  for(let p = 0; p < 3; p++){ pass(A, B, w, h); [A, B] = [B, A]; }
+  transpose(A, B, w, h); [A, B] = [B, A];
+  for(let p = 0; p < 3; p++){ pass(A, B, h, w); [A, B] = [B, A]; }
+  transpose(A, B, h, w); [A, B] = [B, A];
+  for(let i = 0; i < d.length; i += 4){ // unpremultiply
+    const a = A[i+3] / 255;
+    d[i]   = a > 0 ? Math.min(255, A[i]   / a) : 0;
+    d[i+1] = a > 0 ? Math.min(255, A[i+1] / a) : 0;
+    d[i+2] = a > 0 ? Math.min(255, A[i+2] / a) : 0;
+    d[i+3] = A[i+3];
+  }
+  ctx.putImageData(img, 0, 0);
+}
 const blurPxVal = () => {
   const s = softVal();
   if(s <= 0) return 0;
@@ -1206,7 +1263,9 @@ let strokeFrame = null, strokeLayer = null; // vuruş hedefi: kalem indiği anda
 let strokePts = []; // oturum yayını için nokta kaydı [x,y,kalınlık,alfa]
 function commitBuffer(erase){ // tampondaki vuruşu bulanıklık + opaklıkla cel'e işle
   const ctx = getCel(strokeFrame, strokeLayer, true).getContext("2d");
-  ctx.filter = blurFilter();
+  const b = blurPxVal();
+  if(!FILTER_OK && b > 0.1) boxBlurCanvas(sc, b); // eski WebKit: tamponu pikselden bulanıklaştır
+  ctx.filter = FILTER_OK ? blurFilter() : "none";
   ctx.globalAlpha = brushAlpha();
   if(erase) ctx.globalCompositeOperation = "destination-out";
   ctx.drawImage(sc, 0, 0);
@@ -2296,12 +2355,14 @@ document.getElementById("layerBlur").onclick = () => {
   if(!cel) return;
   const amt = Math.min(60, Math.max(1, +document.getElementById("lyrBlur").value || 6));
   pushUndo([snapItem(frames[cur], activeLayer)], "Bulanıklaştır");
-  const copy = cloneCel(cel);
-  const c = cel.getContext("2d");
-  c.clearRect(0, 0, W, H);
-  c.filter = "blur(" + amt + "px)";
-  c.drawImage(copy, 0, 0);
-  c.filter = "none";
+  if(FILTER_OK){
+    const copy = cloneCel(cel);
+    const c = cel.getContext("2d");
+    c.clearRect(0, 0, W, H);
+    c.filter = "blur(" + amt + "px)";
+    c.drawImage(copy, 0, 0);
+    c.filter = "none";
+  } else boxBlurCanvas(cel, amt);
   if(session.on)
     sesOp({ t: "celImg", f: cur, l: activeLayer, img: cel.toDataURL() });
   updateThumb(cur); render();
@@ -2831,8 +2892,9 @@ function bakeWave(o, img){
   frames.forEach((f, i) => {
     bctx.clearRect(0, 0, W, H);
     drawWave(bctx, o, o.phase0 + spd * i);
+    if(!FILTER_OK && b > 0.1) boxBlurCanvas(buf, b);
     const ctx = getCel(f, Lw.id, true).getContext("2d");
-    ctx.filter = b > 0.1 ? "blur(" + b.toFixed(1) + "px)" : "none";
+    ctx.filter = (FILTER_OK && b > 0.1) ? "blur(" + b.toFixed(1) + "px)" : "none";
     ctx.globalAlpha = o.alpha;
     ctx.drawImage(buf, 0, 0);
     ctx.filter = "none"; ctx.globalAlpha = 1;
@@ -3052,8 +3114,9 @@ async function applyRemoteOp(o){
         c.beginPath(); c.moveTo(prev[0], prev[1]); c.lineTo(p[0], p[1]); c.stroke();
         prev = p;
       }
+      if(!FILTER_OK && o.blur > 0.1) boxBlurCanvas(rb, o.blur);
       const ctx = getCel(frame, o.l, true).getContext("2d");
-      ctx.filter = o.blur > 0.1 ? "blur(" + o.blur + "px)" : "none";
+      ctx.filter = (FILTER_OK && o.blur > 0.1) ? "blur(" + o.blur + "px)" : "none";
       ctx.globalAlpha = o.a;
       if(o.erase) ctx.globalCompositeOperation = "destination-out";
       ctx.drawImage(rb, 0, 0);
