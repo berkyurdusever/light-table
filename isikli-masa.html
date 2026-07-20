@@ -5,184 +5,230 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Işıklı Masa — Kare Kare Animasyon</title>
 <style>
+  @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..40,400..700,0..1,-50..200&display=swap');
   :root{
-    --ink:#e8e6df; --paper:#1d1e23; --paper2:#26272d; --muted:#9aa0ad; --line:#e8e6df;
-    --accent:#f0a33a;
+    --bg:#232427; --paper:#2e3036; --paper2:#26282c; --edge:#191a1d;
+    --ink:#f3f2ee; --muted:#9aa0a8; --linecol:#43464d;
+    --accent:#f0a33a; --accent-down:#b0721a;
     --mono:"Monaco","Menlo",ui-monospace,monospace;
-    --chicago:"Chicago","Charcoal","Geneva",Verdana,system-ui,sans-serif;
-    /* işlevsel renkler korunur */
+    --chicago:"Fredoka","SF Pro Rounded",ui-rounded,system-ui,sans-serif;
+    --meat:0 1.5px 0 rgba(0,0,0,.45);          /* yazı altı et kalınlığı */
+    --gloss:inset 0 2px 0 rgba(255,255,255,.16); /* tepe parlaması */
+    --gloss-soft:inset 0 1.5px 0 rgba(255,255,255,.07);
     --past:#e0584c; --future:#4fae6e;
+    --r:14px;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
   html,body{height:100%;}
   body{
-    color:var(--ink);
-    background:repeating-conic-gradient(#141519 0% 25%, #1c1d22 0% 50%);
-    background-size:4px 4px; /* System 7 dither'ı, gece vardiyası */
-    font-family:var(--chicago);
+    color:var(--ink); background:var(--bg);
+    font-family:var(--chicago); font-weight:600; letter-spacing:.01em;
     font-size:13px; display:flex; flex-direction:column; overflow:hidden;
     overscroll-behavior:none;
   }
   button, label, h3, .cell, .layerItem, #topbar, #tlControls{
     -webkit-user-select:none; user-select:none;
   }
+  .ms{
+    font-family:'Material Symbols Rounded'; font-weight:normal; font-style:normal;
+    font-size:18px; line-height:1; display:inline-block; vertical-align:-4px;
+    font-variation-settings:'FILL' 1, 'wght' 600, 'opsz' 24;
+  }
+  /* ── Duolingo düğmesi: kalın alt kenar, basınca çöker ── */
   button{
-    background:var(--paper); color:var(--ink); border:1px solid var(--ink);
-    border-radius:7px; padding:5px 10px; cursor:pointer; font-size:12px;
-    font-family:var(--chicago); box-shadow:1px 1px 0 var(--ink);
+    background:var(--paper); color:var(--ink); border:0;
+    border-radius:12px; padding:7px 13px; cursor:pointer;
+    font-size:12.5px; font-family:var(--chicago); font-weight:700;
+    text-shadow:var(--meat);
+    box-shadow:var(--gloss), 0 4px 0 var(--edge); touch-action:manipulation;
   }
-  @media (hover:hover){ button:hover{background:#2a2b31;} }
-  button:active{transform:translate(1px,1px); box-shadow:none;}
-  button{box-shadow:1px 1px 0 #000;}
-  button:focus-visible{outline:1px dotted var(--ink); outline-offset:2px;}
-  button.active{background:var(--accent); color:#1a1206; border-color:var(--accent); font-weight:600;}
-  button:disabled{color:#666; border-color:#555; box-shadow:1px 1px 0 #000; cursor:default;}
+  @media (hover:hover){ button:hover{filter:brightness(1.12);} }
+  button:active{transform:translateY(4px); box-shadow:var(--gloss), 0 0 0 var(--edge);}
+  button:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+  button.active, button.cta{
+    background:var(--accent); color:#241503;
+    text-shadow:0 1px 0 rgba(255,255,255,.3);
+    box-shadow:inset 0 2px 0 rgba(255,255,255,.35), 0 4px 0 var(--accent-down);
+  }
+  button:disabled{color:#6b6f76; text-shadow:none; box-shadow:var(--gloss-soft), 0 4px 0 var(--edge); cursor:default; filter:none;}
   input[type=number],input[type=text],select{
-    background:var(--paper2); color:var(--ink); border:1px solid var(--ink);
-    border-radius:0; padding:4px 6px; width:62px; font-family:var(--mono); font-size:12px;
+    background:var(--paper2); color:var(--ink);
+    border:2px solid var(--linecol); border-radius:10px;
+    padding:5px 8px; width:62px; font-family:var(--mono); font-size:12px;
   }
-  input:disabled,select:disabled{color:#666; border-color:#555;}
+  input[type=number]:focus,input[type=text]:focus,select:focus{border-color:var(--accent); outline:none;}
+  input:disabled,select:disabled{color:#6b6f76; border-color:#33353a;}
   input[type=range]{accent-color:var(--accent);}
-  input[type=color]{width:34px; height:26px; border:1px solid var(--ink); border-radius:0; background:var(--paper2); cursor:pointer; padding:1px;}
-  input[type=checkbox]{accent-color:var(--accent);}
+  input[type=color]{
+    width:36px; height:30px; border:2px solid var(--linecol);
+    border-radius:10px; background:var(--paper2); cursor:pointer; padding:2px;
+  }
+  input[type=checkbox]{accent-color:var(--accent); width:16px; height:16px;}
   label{color:var(--ink);}
-  .sep{width:1px; align-self:stretch; background:var(--ink); margin:0 4px;}
+  .sep{display:none;}
 
-  /* ── Üst çubuk: System 7 menü çubuğu ───── */
+  /* ── Üst çubuk: hap grupları ───────────── */
   #topbar{
-    display:flex; align-items:center; gap:8px; padding:7px 12px;
-    background:var(--paper); border-bottom:1px solid var(--ink); flex-wrap:wrap;
+    display:flex; align-items:center; gap:10px; padding:10px 14px;
+    background:var(--bg); flex-wrap:wrap;
   }
   #title{
-    font-family:var(--chicago); font-size:14px; font-weight:700;
-    color:var(--ink); margin-right:8px; white-space:nowrap;
+    font-family:var(--chicago); font-size:18px; font-weight:700;
+    color:var(--accent); margin-right:4px; white-space:nowrap;
+    text-shadow:var(--meat);
   }
-  #title{color:var(--accent);}
-  #frameReadout{font-family:var(--mono); color:var(--ink); min-width:70px; text-align:center;}
-  .onionchip{display:inline-flex; align-items:center; gap:4px; font-size:12px; color:var(--ink);}
-  .dot{width:8px; height:8px; border-radius:50%; display:inline-block; border:1px solid var(--ink);}
+  .tgroup{
+    display:flex; align-items:center; gap:6px;
+    background:var(--paper); border-radius:16px; padding:6px 8px;
+    box-shadow:var(--gloss-soft), 0 3px 0 var(--edge);
+  }
+  .tgroup button{background:var(--paper2); box-shadow:var(--gloss), 0 3px 0 var(--edge); padding:6px 11px;}
+  .tgroup button.active, .tgroup button.cta{background:var(--accent);
+    box-shadow:inset 0 2px 0 rgba(255,255,255,.35), 0 3px 0 var(--accent-down);}
+  #frameReadout{font-family:var(--mono); color:var(--muted); min-width:64px; text-align:center;}
+  .onionchip{display:inline-flex; align-items:center; gap:4px; font-size:12px;}
+  .dot{width:9px; height:9px; border-radius:50%; display:inline-block;}
   .dot.p{background:var(--past);} .dot.f{background:var(--future);}
 
-  /* ── Orta bölge: pencereler ────────────── */
+  /* ── Orta bölge: yüzen kartlar ─────────── */
   #main{flex:1; display:flex; min-height:0; gap:0;}
   .side{
-    width:190px; background:var(--paper); border-right:1px solid var(--ink);
-    padding:10px; display:flex; flex-direction:column; gap:14px; overflow-y:auto;
+    width:200px; background:var(--bg);
+    padding:4px 10px 12px; display:flex; flex-direction:column; gap:12px; overflow-y:auto;
   }
-  .side.right{border-right:none; border-left:1px solid var(--ink); width:220px;}
+  .side.right{width:232px;}
+  .side > div{
+    background:var(--paper); border-radius:var(--r); padding:12px;
+    box-shadow:var(--gloss-soft), 0 3px 0 var(--edge); flex:0 0 auto;
+  }
   .side h3{
-    font-family:var(--chicago); font-size:11px; font-weight:700; text-align:center;
-    color:var(--ink); padding:2px 0;
-    background:repeating-linear-gradient(180deg,var(--paper) 0 2px,var(--ink) 2px 3px);
+    font-family:var(--chicago); font-size:11px; font-weight:800;
+    text-transform:uppercase; letter-spacing:.08em; color:var(--muted);
+    display:flex; align-items:center; gap:7px;
   }
-  .side h3{background-clip:border-box;}
-  .side h3, .modal h3{position:relative;}
-  .side h3 > span, .modal h3 > span{background:var(--paper); padding:0 8px;}
-  .toolgrid{display:grid; grid-template-columns:1fr 1fr; gap:0;}
-  .toolgrid button{border-radius:0; box-shadow:none; margin:0 -1px -1px 0;}
-  .toolgrid button.active{margin:0 -1px -1px 0;}
+  .side h3::before{content:""; width:4px; height:14px; border-radius:2px; background:var(--accent);}
+  .side h3 > span, .modal h3 > span{background:none; padding:0;}
+  .toolgrid{display:grid; grid-template-columns:1fr 1fr; gap:7px;}
+  .toolgrid button{border-radius:11px; margin:0; padding:9px 6px; font-size:11.5px;}
   .row{display:flex; align-items:center; gap:6px; flex-wrap:wrap;}
-  .swatches{display:grid; grid-template-columns:repeat(6,1fr); gap:0;}
-  .swatch{width:100%; aspect-ratio:1; border:1px solid var(--ink); cursor:pointer; margin:0 -1px -1px 0;}
-  .swatch.sel{outline:2px solid var(--accent); outline-offset:-3px; z-index:1;}
+  .swatches{display:grid; grid-template-columns:repeat(6,1fr); gap:6px;}
+  .swatch{width:100%; aspect-ratio:1; border-radius:9px; cursor:pointer; box-shadow:0 2px 0 var(--edge);}
+  .swatch.sel{outline:3px solid var(--accent); outline-offset:1px;}
 
   #stage{
     flex:1; display:flex; align-items:center; justify-content:center;
-    min-width:0; min-height:0; padding:14px; overflow:hidden;
+    min-width:0; min-height:0; padding:14px; overflow:hidden; position:relative;
   }
-  #canvasWrap{position:relative; border:1px solid var(--ink); background:#fff;}
-  #cv{display:block; background:#fff; max-width:100%; max-height:calc(100dvh - 250px); cursor:crosshair; touch-action:none;}
-  #canvasWrap{max-width:100%;}
+  #canvasWrap{position:relative; border-radius:6px; overflow:hidden;
+    box-shadow:0 6px 0 var(--edge), 0 0 0 2px var(--linecol); background:#fff; touch-action:none;}
+  #cv{display:block; background:#fff; max-width:100%; max-height:calc(100dvh - 250px); cursor:crosshair; touch-action:none; -webkit-touch-callout:none;}
+  #stage{-webkit-user-select:none; user-select:none;}
+
+  /* ── Görünüm kaydırıcıları (pan/zoom) ──── */
+  .viewSlider{position:absolute; opacity:.3; transition:opacity .15s; z-index:5; margin:0;}
+  .viewSlider:hover, .viewSlider:active{opacity:1;}
+  .vx{left:14px; bottom:8px; width:calc(100% - 110px);}
+  .vy{left:-86px; top:50%; width:210px; transform:rotate(-90deg); transform-origin:center; margin-left:98px;}
+  .vz{right:-86px; top:50%; width:210px; transform:rotate(-90deg); transform-origin:center; margin-right:98px;}
+  #viewBadge{
+    position:absolute; right:10px; bottom:6px; z-index:5;
+    display:flex; align-items:center; gap:6px; opacity:.35; transition:opacity .15s;
+    font-family:var(--mono); font-size:11px; color:var(--ink);
+  }
+  #viewBadge:hover{opacity:1;}
+  #viewBadge button{padding:3px 9px; box-shadow:0 2px 0 var(--edge);}
 
   /* ── Katman paneli ─────────────────────── */
-  #layerList{display:flex; flex-direction:column; gap:0;}
+  #layerList{display:flex; flex-direction:column; gap:6px;}
   .layerItem{
-    display:flex; flex-direction:column; gap:4px; padding:5px 6px;
-    background:var(--paper); border:1px solid var(--ink); margin-bottom:-1px; cursor:pointer;
+    display:flex; flex-direction:column; gap:5px; padding:8px 9px;
+    background:var(--paper2); border-radius:11px; cursor:pointer;
+    box-shadow:var(--gloss-soft), 0 2px 0 var(--edge);
   }
-  .layerItem.sel{background:#2c2d35; box-shadow:inset 0 0 0 1px var(--accent); border-color:var(--accent);}
+  .layerItem.sel{outline:3px solid var(--accent);}
   .lrow{display:flex; align-items:center; gap:6px;}
   .layerItem .lname{flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
-  .layerItem select{flex:1; min-width:0; font-size:11px; padding:2px 4px;}
-  .eye{cursor:pointer; opacity:.9; user-select:none;}
+  .layerItem select{flex:1; min-width:0; font-size:11px; padding:3px 5px;}
+  .eye{cursor:pointer; opacity:.9;}
   .eye.off{opacity:.25;}
-  .layerItem input[type=range]{width:64px;}
+  .layerItem input[type=range]{width:66px;}
 
   /* ── Tween paneli ──────────────────────── */
   .tweenGrid{display:grid; grid-template-columns:auto 1fr; gap:6px 8px; align-items:center;}
   .tweenGrid input,.tweenGrid select{width:100%;}
   #tweenMsg{font-size:11px; color:var(--muted); min-height:14px;}
 
-  /* ── Zaman çizelgesi ───────────────────── */
+  /* ── Geçmiş paneli ─────────────────────── */
+  #histList{display:flex; flex-direction:column; gap:4px; margin-top:6px; max-height:160px; overflow-y:auto;}
+  .histItem{
+    font-family:var(--mono); font-size:11px; padding:4px 9px;
+    border-radius:8px; cursor:pointer; background:var(--paper2);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  @media (hover:hover){ .histItem:hover{background:#3a3d44;} }
+  .histItem.redo{opacity:.45; font-style:italic;}
+
+  /* ── Zaman çizelgesi: karo hissi ───────── */
   #timelineBar{
-    background:var(--paper); border-top:1px solid var(--ink);
-    padding:8px 12px; display:flex; flex-direction:column; gap:6px;
+    background:var(--bg); padding:6px 14px 12px;
+    display:flex; flex-direction:column; gap:8px;
   }
   #tlControls{display:flex; align-items:center; gap:6px; flex-wrap:wrap;}
   #timeline{
-    display:flex; gap:4px; overflow-x:auto; padding:6px 4px 8px;
-    background:repeating-conic-gradient(#191a1f 0% 25%, #202127 0% 50%);
-    background-size:4px 4px;
-    border:1px solid var(--ink); min-height:96px;
+    position:relative;
+    display:flex; gap:8px; overflow-x:auto; padding:8px;
+    background:var(--paper); border-radius:var(--r);
+    box-shadow:inset 0 2px 6px rgba(0,0,0,.35);
+    min-height:96px;
   }
   .cell{
-    flex:0 0 auto; border:1px solid var(--ink);
-    background:var(--paper); padding:3px; cursor:pointer; position:relative;
-    display:flex; flex-direction:column; align-items:flex-start; gap:2px;
-    box-shadow:1px 1px 0 var(--ink);
+    flex:0 0 auto; border-radius:10px;
+    background:var(--paper2); padding:5px; cursor:pointer; position:relative;
+    display:flex; flex-direction:column; align-items:flex-start; gap:3px;
+    box-shadow:var(--gloss-soft), 0 3px 0 var(--edge);
   }
-  .cell.sel{border-width:2px; padding:2px; background:#2c2d35; border-color:var(--accent);}
+  .cell.sel{outline:3px solid var(--accent); box-shadow:0 3px 0 var(--accent-down), 0 0 14px rgba(240,163,58,.35);}
   .cell .num{font-family:var(--mono); font-size:10px; color:var(--muted); padding-left:2px;}
   .cell.sel .num{color:var(--accent); font-weight:700;}
-  .cell canvas{background:#fff; border:1px solid #555; display:block;}
+  .cell canvas{background:#fff; border-radius:6px; display:block;}
   .cell .holdmark{
-    position:absolute; right:4px; top:3px; font-family:var(--mono);
-    font-size:10px; color:var(--ink); font-weight:700;
+    position:absolute; right:6px; top:5px; font-family:var(--mono);
+    font-size:10px; color:var(--accent); font-weight:800;
   }
-  #tlHint{font-size:11px; color:var(--muted);}
+  #tlHint{font-size:11px; color:var(--muted); font-weight:400;}
+  #dropLine{
+    position:absolute; top:6px; bottom:6px; width:4px; border-radius:2px;
+    background:var(--accent); pointer-events:none; display:none; z-index:2;
+    box-shadow:0 0 10px rgba(240,163,58,.6);
+  }
 
-  /* ── Geçmiş paneli ─────────────────────── */
-  #histList{
-    display:flex; flex-direction:column; gap:0; margin-top:4px;
-    max-height:160px; overflow-y:auto;
-  }
-  .histItem{
-    font-family:var(--mono); font-size:11px; padding:3px 7px;
-    border:1px solid var(--ink); margin-bottom:-1px; cursor:pointer;
-    background:var(--paper2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-  }
-  .histItem:hover{background:#33343c;}
-  .histItem.redo{opacity:.45; font-style:italic;}
-
-  /* ── Jog pedi (elle gezdirme) ──────────── */
+  /* ── Jog pedi ──────────────────────────── */
   #jogPad{
-    position:relative; width:190px; height:36px; flex:0 0 auto;
-    border:1px solid var(--ink); box-shadow:1px 1px 0 #000;
-    background:repeating-conic-gradient(#191a1f 0% 25%, #202127 0% 50%);
-    background-size:4px 4px;
+    position:relative; width:190px; height:38px; flex:0 0 auto;
+    border-radius:12px; background:var(--paper);
+    box-shadow:inset 0 2px 5px rgba(0,0,0,.4);
     cursor:ew-resize; touch-action:none; user-select:none; overflow:hidden;
   }
   #jogFill{
     position:absolute; left:0; top:0; bottom:0; width:0;
-    background:var(--accent); opacity:.28;
+    background:var(--accent); opacity:.35; border-radius:12px 0 0 12px;
   }
   #jogNum{
     position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
-    font-family:var(--mono); font-size:16px; font-weight:700; color:var(--accent);
-    text-shadow:1px 1px 0 #000; pointer-events:none;
+    font-family:var(--mono); font-size:16px; font-weight:800; color:var(--accent);
+    text-shadow:var(--meat); pointer-events:none;
   }
 
   /* ── Fırça ayar HUD'u ──────────────────── */
   #hud{
     position:fixed; z-index:99; pointer-events:none;
     display:flex; align-items:center; gap:10px;
-    background:var(--paper); border:1px solid var(--ink);
-    box-shadow:2px 2px 0 var(--ink); padding:8px 12px;
+    background:var(--paper); border-radius:12px;
+    box-shadow:0 4px 0 var(--edge); padding:9px 13px;
     font-family:var(--mono); font-size:12px; color:var(--ink);
   }
   #hud[hidden]{display:none !important;}
-  #hudCircle{border-radius:50%; flex:0 0 auto; border:1px solid var(--ink);}
-  button{touch-action:manipulation;}
+  #hudCircle{border-radius:50%; flex:0 0 auto;}
 
   /* ── Uzak imleçler ─────────────────────── */
   #cursorLayer{position:absolute;inset:0;pointer-events:none;overflow:hidden;}
@@ -190,91 +236,93 @@
     position:absolute; transform:translate(-50%,-50%);
     display:flex; align-items:center; gap:4px; transition:left .06s linear, top .06s linear;
   }
-  .peerCur .pdot{width:10px;height:10px;border-radius:50%;border:2px solid #fff;}
+  .peerCur .pdot{width:11px;height:11px;border-radius:50%;border:2px solid #fff;}
   .peerCur .pname{
-    font-size:10px; font-family:var(--mono); color:var(--ink);
-    background:var(--paper); border:1px solid var(--ink); padding:1px 5px; white-space:nowrap;
+    font-size:10px; font-family:var(--mono); color:#fff;
+    background:rgba(25,26,29,.85); padding:2px 7px; border-radius:8px; white-space:nowrap;
   }
   .peerChip{
     display:inline-flex; align-items:center; gap:5px; font-size:11px;
-    background:var(--paper); border:1px solid var(--ink); border-radius:10px; padding:3px 8px;
+    background:var(--paper2); border-radius:10px; padding:4px 10px;
   }
 
-  /* ── Modal: klasik Mac diyaloğu ────────── */
+  /* ── Modallar ──────────────────────────── */
   .modalBg{
-    position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:50;
+    position:fixed; inset:0; background:rgba(10,11,13,.6); z-index:50;
     display:flex; align-items:center; justify-content:center;
+    backdrop-filter:blur(3px);
   }
   .modalBg[hidden]{display:none !important;}
   .modal{
-    background:var(--paper); border:2px solid var(--ink); outline:1px solid var(--ink); outline-offset:2px;
-    padding:14px; width:350px; max-height:92vh; overflow-y:auto;
-    display:flex; flex-direction:column; gap:10px;
-    box-shadow:4px 4px 0 var(--ink);
+    background:var(--paper); border-radius:20px;
+    padding:18px; width:360px; max-height:92vh; overflow-y:auto;
+    display:flex; flex-direction:column; gap:12px;
+    box-shadow:0 8px 0 var(--edge), 0 24px 60px rgba(0,0,0,.5);
   }
   .modal h3{
-    font-family:var(--chicago); font-size:12px; font-weight:700; text-align:center;
-    color:var(--ink); padding:3px 0; margin:-4px 0 2px;
-    background:repeating-linear-gradient(180deg,var(--paper) 0 2px,var(--ink) 2px 3px);
+    font-family:var(--chicago); font-size:16px; font-weight:700; color:var(--ink);
+    text-shadow:var(--meat);
   }
-  .waveGrid{display:grid; grid-template-columns:74px 1fr; gap:6px 8px; align-items:center;}
+  .waveGrid{display:grid; grid-template-columns:78px 1fr; gap:7px 9px; align-items:center;}
   .waveGrid input[type=number],.waveGrid select{width:100%;}
   .waveGrid .pair{display:flex; gap:6px; align-items:center;}
-  #wavePv{background:#fff; border:1px solid var(--ink); align-self:center;}
-  #shPv{border:1px solid var(--ink);}
+  #wavePv{background:#fff; border-radius:10px; align-self:center;}
+  #shPv{border-radius:10px;}
+  .expGrid{display:grid; grid-template-columns:1fr 1fr; gap:9px;}
+  .expGrid button{
+    display:flex; flex-direction:column; align-items:flex-start; gap:3px;
+    padding:11px 12px; text-align:left; font-size:13px;
+  }
+  .expGrid button small{font-size:10px; font-weight:600; color:var(--muted);}
 
-  /* ── Dokunmatik cihaz uyarlamaları ─────── */
+  /* ── Dokunmatik (iPad) ─────────────────── */
   @media (pointer:coarse){
-    button{padding:10px 14px; font-size:13px;}
-    .cell{padding:5px;}
-    .cell.sel{padding:4px;}
+    button{padding:11px 14px; font-size:13px;}
+    .ms{font-size:20px;}
+    .tgroup button{padding:9px 12px;}
+    .cell{padding:6px;}
     input[type=range]{min-height:32px;}
-    input[type=number],input[type=text],select{min-height:34px; font-size:13px;}
-    input[type=checkbox]{width:18px; height:18px;}
-    input[type=color]{width:40px; height:32px;}
+    input[type=number],input[type=text],select{min-height:36px; font-size:13px;}
+    input[type=checkbox]{width:19px; height:19px;}
+    input[type=color]{width:42px; height:34px;}
     .eye{font-size:17px; padding:2px 4px;}
-    .layerItem{padding:8px 8px; gap:6px;}
-    .layerItem input[type=range]{width:80px;}
-    #jogPad{width:230px; height:44px;}
+    .layerItem{padding:9px 10px;}
+    .layerItem input[type=range]{width:82px;}
+    #jogPad{width:230px; height:46px;}
     #jogNum{font-size:18px;}
     .toolgrid button{padding:12px 8px;}
-    .side{width:206px;}
-    .side.right{width:240px;}
-    .modal{width:400px;}
+    .side{width:214px;}
+    .side.right{width:248px;}
+    .modal{width:410px;}
   }
-  #stage{touch-action:none; -webkit-user-select:none; user-select:none;}
-  #cv{-webkit-touch-callout:none;}
-
-  @media (max-width:900px) and (pointer:fine){ .side{width:150px;} .side.right{width:180px;} }
+  @media (max-width:900px) and (pointer:fine){ .side{width:160px;} .side.right{width:190px;} }
 </style>
 </head>
 <body>
 
 <div id="topbar">
   <span id="title">Işıklı Masa</span>
-  <button id="prevBtn" title="Önceki kare (←)">⏮</button>
-  <button id="playBtn" title="Boşluk">▶ Oynat</button>
-  <button id="nextBtn" title="Sonraki kare (→)">⏭</button>
-  <label>FPS <input type="number" id="fps" min="1" max="30" value="12" style="width:48px"></label>
-  <span id="frameReadout">1 / 1</span>
-  <div class="sep"></div>
-  <button id="onionBtn" class="active">Onion Skin</button>
-  <span class="onionchip"><span class="dot p"></span><input type="number" id="onionPrev" min="0" max="3" value="1" style="width:40px" title="Önceki kare sayısı"></span>
-  <span class="onionchip"><span class="dot f"></span><input type="number" id="onionNext" min="0" max="3" value="1" style="width:40px" title="Sonraki kare sayısı"></span>
-  <label>Opaklık <input type="range" id="onionAlpha" min="5" max="60" value="30" style="width:70px"></label>
-  <div class="sep"></div>
-  <button id="expSheet">Sprite Sheet</button>
-  <button id="expGif">GIF</button>
-  <button id="expSeq">PNG Sekans</button>
-  <button id="expSpine">Spine</button>
-  <button id="expPng">Kare PNG</button>
-  <button id="expPsd">Kare PSD</button>
-  <div class="sep"></div>
-  <button id="saveBtn">Projeyi kaydet</button>
-  <button id="loadBtn">Proje aç</button>
-  <button id="impBtn">Kare içe aktar</button>
-  <div class="sep"></div>
-  <button id="sesBtn">🌐 Oturum</button>
+  <div class="tgroup">
+    <button id="prevBtn" title="Önceki kare (←)"><span class="ms">skip_previous</span></button>
+    <button id="playBtn" title="Boşluk"><span class="ms">play_arrow</span> Oynat</button>
+    <button id="nextBtn" title="Sonraki kare (→)"><span class="ms">skip_next</span></button>
+    <label>FPS <input type="number" id="fps" min="1" max="30" value="12" style="width:52px"></label>
+    <span id="frameReadout">1 / 1</span>
+  </div>
+  <div class="tgroup">
+    <button id="onionBtn" class="active"><span class="ms">auto_awesome_motion</span> Onion</button>
+    <span class="onionchip"><span class="dot p"></span><input type="number" id="onionPrev" min="0" max="3" value="1" style="width:44px" title="Önceki kare sayısı"></span>
+    <span class="onionchip"><span class="dot f"></span><input type="number" id="onionNext" min="0" max="3" value="1" style="width:44px" title="Sonraki kare sayısı"></span>
+    <input type="range" id="onionAlpha" min="5" max="60" value="30" style="width:64px" title="Onion opaklığı">
+    <button id="flipBtn" title="Kanvası aynala (F) — görünümü çevirir, veriye dokunmaz"><span class="ms">flip</span></button>
+  </div>
+  <div class="tgroup">
+    <button id="expBtn" class="cta"><span class="ms">download</span> Dışa Aktar</button>
+    <button id="saveBtn"><span class="ms">save</span> Kaydet</button>
+    <button id="loadBtn"><span class="ms">folder_open</span> Aç</button>
+    <button id="impBtn"><span class="ms">upload</span> İçe aktar</button>
+  </div>
+  <button id="sesBtn"><span class="ms">group</span></button>
   <input type="file" id="loadInput" accept=".json,application/json" hidden>
   <input type="file" id="impInput" accept="image/*,.psd" multiple hidden>
 </div>
@@ -285,15 +333,15 @@
     <div>
       <h3><span>Araçlar</span></h3>
       <div class="toolgrid" style="margin-top:8px">
-        <button data-tool="brush" class="active">✏ Fırça (B)</button>
-        <button data-tool="eraser">◻ Silgi (E)</button>
-        <button data-tool="line">╱ Çizgi (L)</button>
-        <button data-tool="fill">▨ Dolgu (G)</button>
-        <button data-tool="rect">▭ Dikdörtgen (R)</button>
-        <button data-tool="ellipse">◯ Elips (O)</button>
-        <button data-tool="poly">⬠ Çokgen (P)</button>
-        <button data-tool="star">★ Yıldız (Y)</button>
-        <button data-tool="lasso">◌ Kement (K)</button>
+        <button data-tool="brush" class="active"><span class="ms">brush</span> Fırça (B)</button>
+        <button data-tool="eraser"><span class="ms">ink_eraser</span> Silgi (E)</button>
+        <button data-tool="line"><span class="ms">straighten</span> Çizgi (L)</button>
+        <button data-tool="fill"><span class="ms">format_color_fill</span> Dolgu (G)</button>
+        <button data-tool="rect"><span class="ms">rectangle</span> Dikdörtgen (R)</button>
+        <button data-tool="ellipse"><span class="ms">circle</span> Elips (O)</button>
+        <button data-tool="poly"><span class="ms">pentagon</span> Çokgen (P)</button>
+        <button data-tool="star"><span class="ms">star</span> Yıldız (Y)</button>
+        <button data-tool="lasso"><span class="ms">lasso_select</span> Kement (K)</button>
       </div>
       <div class="row" style="margin-top:8px;gap:8px">
         <label style="display:flex;align-items:center;gap:4px;font-size:11px">
@@ -308,7 +356,7 @@
       <h3><span>Fırça</span></h3>
       <div class="row" style="margin-top:8px">
         <label style="width:44px">Boyut</label>
-        <input type="range" id="size" min="1" max="40" value="4" style="flex:1">
+        <input type="range" id="size" min="1" max="120" value="4" style="flex:1">
         <span id="sizeVal" style="font-family:var(--mono);width:26px;text-align:right">4</span>
       </div>
       <div class="row" style="margin-top:6px">
@@ -359,8 +407,8 @@
     <div>
       <h3><span>Geçmiş</span></h3>
       <div class="row" style="margin-top:8px">
-        <button id="undoBtn" style="flex:1">↶ Geri</button>
-        <button id="redoBtn" style="flex:1">↷ İleri</button>
+        <button id="undoBtn" style="flex:1"><span class="ms">undo</span> Geri</button>
+        <button id="redoBtn" style="flex:1"><span class="ms">redo</span> İleri</button>
       </div>
       <div id="histInfo" style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:6px"></div>
       <div id="histList"></div>
@@ -370,6 +418,10 @@
   <!-- Orta: kanvas -->
   <div id="stage">
     <div id="canvasWrap"><canvas id="cv" width="640" height="480"></canvas><div id="cursorLayer"></div></div>
+    <input type="range" id="panX" class="viewSlider vx" min="-100" max="100" value="0" title="Yatay kaydır">
+    <input type="range" id="panY" class="viewSlider vy" min="-100" max="100" value="0" title="Dikey kaydır">
+    <input type="range" id="zoomS" class="viewSlider vz" min="25" max="400" value="100" title="Yakınlaştır">
+    <div id="viewBadge"><span id="zoomVal">100%</span><button id="viewReset" title="Görünümü sıfırla"><span class="ms">my_location</span></button></div>
   </div>
 
   <!-- Sağ: katmanlar + tween -->
@@ -377,10 +429,10 @@
     <div>
       <h3><span>Katmanlar</span></h3>
       <div class="row" style="margin:8px 0 6px">
-        <button id="layerAdd">+ Ekle</button>
-        <button id="layerDel">Sil</button>
-        <button id="layerUp">↑</button>
-        <button id="layerDown">↓</button>
+        <button id="layerAdd"><span class="ms">add</span> Ekle</button>
+        <button id="layerDel"><span class="ms">delete</span></button>
+        <button id="layerUp"><span class="ms">arrow_upward</span></button>
+        <button id="layerDown"><span class="ms">arrow_downward</span></button>
         <button id="layerClear" title="Seçili karedeki aktif katman içeriğini siler">Temizle</button>
       </div>
       <div id="layerList"></div>
@@ -443,15 +495,15 @@
     </div>
     <div>
       <h3><span>Efektler</span></h3>
-      <button id="waveOpen" style="width:100%;margin-top:8px">〰 Kayan Dalga…</button>
+      <button id="waveOpen" style="width:100%;margin-top:8px"><span class="ms">auto_awesome</span> Efektler…</button>
     </div>
   </div>
 </div>
 <div id="timelineBar">
   <div id="tlControls">
-    <button id="addBlank">+ Boş kare</button>
-    <button id="addDup">+ Çoğalt</button>
-    <button id="delFrame">Kareyi sil</button>
+    <button id="addBlank"><span class="ms">add</span> Boş kare</button>
+    <button id="addDup"><span class="ms">content_copy</span> Çoğalt</button>
+    <button id="delFrame"><span class="ms">delete</span> Kareyi sil</button>
     <div class="sep"></div>
     <button id="holdPlus">Hold +</button>
     <button id="holdMinus">Hold −</button>
@@ -474,7 +526,7 @@
 
 <div id="waveModal" class="modalBg" hidden>
   <div class="modal">
-    <h3><span>〰 Kayan Dalga</span></h3>
+    <h3><span><span class="ms">auto_awesome</span> Efektler — Kayan Dalga</span></h3>
     <canvas id="wavePv" width="264" height="198"></canvas>
     <div class="waveGrid">
       <label>Başlangıç</label>
@@ -559,7 +611,7 @@
       <label>Görsel</label>
       <div class="pair">
         <button id="pImgBtn" style="flex:1">PNG seç…</button>
-        <button id="pImgClear" title="Görseli kaldır, daireye dön">×</button>
+        <button id="pImgClear" title="Görseli kaldır, daireye dön"><span class="ms">close</span></button>
       </div>
       <label></label>
       <label style="display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--ink)">
@@ -682,16 +734,51 @@
   </div>
 </div>
 
+<div id="expModal" class="modalBg" hidden>
+  <div class="modal">
+    <h3><span><span class="ms">download</span> Dışa Aktar</span></h3>
+    <div class="expGrid">
+      <button id="expSheet"><span class="ms">grid_on</span> Sprite Sheet<small>ızgara, JSON, CSS</small></button>
+      <button id="expGif"><span class="ms">gif_box</span> GIF<small>animasyonlu görüntü</small></button>
+      <button id="expSeq"><span class="ms">burst_mode</span> PNG Sekans<small>numaralı kareler (ZIP)</small></button>
+      <button id="expSpine"><span class="ms">animation</span> Spine<small>attachment animasyonu</small></button>
+      <button id="expPng"><span class="ms">image</span> Kare PNG<small>seçili karenin görüntüsü</small></button>
+      <button id="expPsd"><span class="ms">layers</span> Kare PSD<small>katmanlı Photoshop</small></button>
+    </div>
+    <div class="row"><button id="expClose" style="flex:1">Kapat</button></div>
+  </div>
+</div>
+
+<div id="seqModal" class="modalBg" hidden>
+  <div class="modal">
+    <h3><span><span class="ms">burst_mode</span> PNG Sekans</span></h3>
+    <div class="waveGrid">
+      <label>Dosya öneki</label><input type="text" id="seqName" value="kare" style="width:100%">
+      <label></label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:var(--ink)">
+        <input type="checkbox" id="seqHold"> Hold'ları açarak (her poz tekrar)
+      </label>
+    </div>
+    <div style="font-size:12px;color:var(--muted)">
+      Kapalıyken yalnız benzersiz kareler; açıkken pozlar oynatma sırasındaki gibi tekrarlanır.
+    </div>
+    <div class="row">
+      <button id="seqGo" class="active" style="flex:1">ZIP indir</button>
+      <button id="seqClose">Vazgeç</button>
+    </div>
+  </div>
+</div>
+
 <div id="sesModal" class="modalBg" hidden>
   <div class="modal">
-    <h3><span>🌐 Ortak Oturum</span></h3>
+    <h3><span><span class="ms">group</span> Ortak Oturum</span></h3>
     <div id="sesStatus" style="font-size:12px;color:var(--muted)">Bağlı değil.</div>
     <div class="waveGrid">
       <label>Adın</label><input type="text" id="sesName" value="" maxlength="24" style="width:100%">
       <label>Oda kodu</label>
       <div class="pair">
         <input type="text" id="sesCode" maxlength="12" style="flex:1;text-transform:uppercase">
-        <button id="sesRand" title="Rastgele kod üret">🎲</button>
+        <button id="sesRand" title="Rastgele kod üret"><span class="ms">casino</span></button>
       </div>
     </div>
     <div class="row">
@@ -928,9 +1015,11 @@ function render(){
 let drawing = false, last = null, lastPf = 1, lineStart = null;
 const sc = document.createElement("canvas"); sc.width = W; sc.height = H; // aktif fırça vuruşu tamponu
 const sctx = sc.getContext("2d");
+let viewFlip = false; // aynalama bir görünüm durumudur; piksel verisi ve geçmiş değişmez
 function pos(e){
   const r = cv.getBoundingClientRect();
-  return { x: (e.clientX - r.left) * W / r.width, y: (e.clientY - r.top) * H / r.height };
+  const x = (e.clientX - r.left) * W / r.width;
+  return { x: viewFlip ? W - x : x, y: (e.clientY - r.top) * H / r.height };
 }
 const brushSize = () => +document.getElementById("size").value;
 const brushAlpha = () => +document.getElementById("bOpacity").value / 100;
@@ -968,7 +1057,13 @@ function dot(ctx, p, w){
 const ec = document.createElement("canvas"); ec.width = W; ec.height = H; // silgi önizleme tamponu
 const ectx = ec.getContext("2d");
 const softVal = () => +document.getElementById("softness").value / 100;
-const blurPxVal = () => Math.min(20, brushSize() * softVal() * 0.5);
+let strokeMaxW = 0; // vuruş boyunca ulaşılan en geniş efektif kalınlık
+const blurPxVal = () => {
+  const s = softVal();
+  if(s <= 0) return 0;
+  const w = (drawing && strokeMaxW) ? strokeMaxW : brushSize();
+  return Math.max(0.6, Math.min(60, w * s * 0.5)); // yumuşaklık açıksa hep görünür
+};
 function blurFilter(){
   const b = blurPxVal();
   return b > 0.1 ? "blur(" + b.toFixed(1) + "px)" : "none";
@@ -1124,6 +1219,7 @@ cv.addEventListener("pointerdown", e => {
   strokePts = [];
   pushUndo([snapItem(strokeFrame, strokeLayer)], TOOL_LABELS[tool] || "Vuruş");
   drawing = true; last = p; lastPf = pf(e); drawingType = e.pointerType;
+  strokeMaxW = brushSize() * wFac(lastPf);
   sctx.clearRect(0,0,W,H);
   sctx.fillStyle = sctx.strokeStyle =
     tool === "eraser" ? "#000" : document.getElementById("color").value;
@@ -1164,8 +1260,10 @@ cv.addEventListener("pointermove", e => {
   const evs = e.getCoalescedEvents ? e.getCoalescedEvents() : null;
   for(const ev of (evs && evs.length ? evs : [e])){
     const p = pos(ev), f = pf(ev), avg = (lastPf + f) / 2;
+    const segW = brushSize() * wFac(avg);
+    strokeMaxW = Math.max(strokeMaxW, segW);
     sctx.globalAlpha = aFac(avg);
-    segment(sctx, last, p, brushSize() * wFac(avg));
+    segment(sctx, last, p, segW);
     sctx.globalAlpha = 1;
     strokePts.push([+p.x.toFixed(1), +p.y.toFixed(1),
                     +(brushSize()*wFac(avg)).toFixed(2), +aFac(avg).toFixed(3)]);
@@ -1243,7 +1341,8 @@ function renderLayers(){
     const row2 = document.createElement("div"); row2.className = "lrow";
     const eye = document.createElement("span");
     eye.className = "eye" + (L.visible ? "" : " off");
-    eye.textContent = "👁"; eye.title = "Görünürlük";
+    eye.innerHTML = '<span class="ms">' + (L.visible ? "visibility" : "visibility_off") + "</span>";
+    eye.title = "Görünürlük";
     eye.onclick = ev => {
       ev.stopPropagation(); L.visible = !L.visible;
       sesOp({ t: "layerProp", id: L.id, p: { visible: L.visible } });
@@ -1318,6 +1417,49 @@ function moveLayer(dir){
 
 /* ── Zaman çizelgesi ─────────────────────── */
 const TL = document.getElementById("timeline");
+const dropLine = document.createElement("div");
+dropLine.id = "dropLine";
+const tlCells = () => [...TL.children].filter(c => c.classList && c.classList.contains("cell"));
+function gapIndexAt(clientX){ // işaretçi hangi boşluğun üstünde: 0..N (N = en sona)
+  const cells = tlCells();
+  for(let i = 0; i < cells.length; i++){
+    const r = cells[i].getBoundingClientRect();
+    if(clientX < r.left + r.width / 2) return i;
+  }
+  return cells.length;
+}
+function showDropLine(gap){
+  const cells = tlCells();
+  if(!cells.length) return;
+  const x = gap < cells.length
+    ? cells[gap].offsetLeft - 3
+    : cells[cells.length - 1].offsetLeft + cells[cells.length - 1].offsetWidth + 1;
+  dropLine.style.left = x + "px";
+  dropLine.style.display = "block";
+}
+function hideDropLine(){ dropLine.style.display = "none"; }
+TL.addEventListener("dragover", e => {
+  e.preventDefault();
+  showDropLine(gapIndexAt(e.clientX));
+});
+TL.addEventListener("dragleave", e => {
+  if(!TL.contains(e.relatedTarget)) hideDropLine();
+});
+TL.addEventListener("drop", e => {
+  e.preventDefault();
+  hideDropLine();
+  const from = +e.dataTransfer.getData("text/plain");
+  if(isNaN(from)) return;
+  const gap = gapIndexAt(e.clientX);
+  const to = gap > from ? gap - 1 : gap; // kaynak çıkınca indeksler kayar
+  if(to === from) return;
+  if(playing) stopPlay(); // oynatma dizisi eski indekslerle çalışmasın
+  const [m] = frames.splice(from, 1);
+  frames.splice(to, 0, m);
+  sesOp({ t: "frameMove", from, to });
+  cur = to;
+  renderTimeline(); render();
+});
 const thumbs = new Map(); // frameId -> canvas
 function updateThumb(i){
   if(i < 0 || i >= frames.length) return;
@@ -1359,20 +1501,10 @@ function renderTimeline(){
     if(th) cell.appendChild(th); // canlı referans: updateThumb çizince hücre anında güncellenir
     cell.onclick = () => { cur = i; markTimeline(); render(); };
     cell.addEventListener("dragstart", e => e.dataTransfer.setData("text/plain", i));
-    cell.addEventListener("dragover", e => e.preventDefault());
-    cell.addEventListener("drop", e => {
-      e.preventDefault();
-      const from = +e.dataTransfer.getData("text/plain");
-      if(isNaN(from) || from === i) return;
-      if(playing) stopPlay(); // oynatma dizisi eski indekslerle çalışmasın
-      const [m] = frames.splice(from, 1);
-      frames.splice(i, 0, m);
-      sesOp({ t: "frameMove", from, to: i });
-      cur = i;
-      renderTimeline(); render();
-    });
+    cell.addEventListener("dragend", hideDropLine);
     TL.appendChild(cell);
   });
+  TL.appendChild(dropLine); // hücrelerden sonra: offsetLeft hesapları bozulmaz
   const selCell = TL.children[cur];
   if(selCell) selCell.scrollIntoView({ block: "nearest", inline: "nearest" });
   syncScrub();
@@ -1421,7 +1553,7 @@ function startPlay(){
   frames.forEach((f, i) => { for(let k = 0; k < f.hold; k++) playSeq.push(i); });
   playPtr = playSeq.indexOf(cur); if(playPtr < 0) playPtr = 0;
   playing = true;
-  playBtn.textContent = "⏸ Durdur"; playBtn.classList.add("active");
+  playBtn.innerHTML = '<span class="ms">pause</span> Durdur'; playBtn.classList.add("active");
   const fps = Math.max(1, Math.min(30, +document.getElementById("fps").value || 12));
   playTimer = setInterval(() => {
     playPtr = (playPtr + 1) % playSeq.length;
@@ -1431,7 +1563,7 @@ function startPlay(){
 }
 function stopPlay(){
   playing = false; clearInterval(playTimer);
-  playBtn.textContent = "▶ Oynat"; playBtn.classList.remove("active");
+  playBtn.innerHTML = '<span class="ms">play_arrow</span> Oynat'; playBtn.classList.remove("active");
   render();
 }
 playBtn.onclick = () => playing ? stopPlay() : startPlay();
@@ -1497,6 +1629,32 @@ document.getElementById("onionBtn").onclick = e => {
 document.getElementById("onionPrev").onchange = e => { onion.prev = +e.target.value; render(); };
 document.getElementById("onionNext").onchange = e => { onion.next = +e.target.value; render(); };
 document.getElementById("onionAlpha").oninput = e => { onion.alpha = e.target.value / 100; render(); };
+
+/* ── Pan / Zoom görünümü ─────────────────── */
+const canvasWrapEl = document.getElementById("canvasWrap");
+function updateView(){
+  const z = (+document.getElementById("zoomS").value) / 100;
+  const tx = (+document.getElementById("panX").value) / 100 * cv.offsetWidth * 0.6 * z;
+  const ty = -(+document.getElementById("panY").value) / 100 * cv.offsetHeight * 0.6 * z;
+  const sx = viewFlip ? -z : z; // aynalama görünüm dönüşümünde yaşar
+  canvasWrapEl.style.transform =
+    "translate(" + tx + "px," + ty + "px) scale(" + sx + "," + z + ")";
+  document.getElementById("zoomVal").textContent = Math.round(z * 100) + "%";
+}
+function toggleFlip(){
+  viewFlip = !viewFlip;
+  document.getElementById("flipBtn").classList.toggle("active", viewFlip);
+  updateView();
+}
+document.getElementById("flipBtn").onclick = toggleFlip;
+["panX","panY","zoomS"].forEach(id =>
+  document.getElementById(id).addEventListener("input", updateView));
+document.getElementById("viewReset").onclick = () => {
+  document.getElementById("panX").value = 0;
+  document.getElementById("panY").value = 0;
+  document.getElementById("zoomS").value = 100;
+  updateView();
+};
 
 /* ── Araç / renk / boyut ─────────────────── */
 document.querySelectorAll("[data-tool]").forEach(b => {
@@ -1779,7 +1937,7 @@ async function ensureAgPsd(){
 const BLEND_TO_PSD = { "source-over": "normal", "multiply": "multiply", "lighter": "linear dodge" };
 const PSD_TO_BLEND = { "normal": "source-over", "multiply": "multiply", "linear dodge": "lighter" };
 document.getElementById("expPsd").onclick = async e => {
-  const btn = e.target;
+  const btn = e.currentTarget;
   btn.disabled = true; btn.textContent = "PSD hazırlanıyor…";
   try{
     await ensureAgPsd();
@@ -1801,7 +1959,8 @@ document.getElementById("expPsd").onclick = async e => {
     console.error(err);
     alert("PSD kitaplığına ulaşılamadı (ağ engeli olabilir).");
   }
-  btn.disabled = false; btn.textContent = "Kare PSD";
+  btn.disabled = false;
+  btn.innerHTML = '<span class="ms">layers</span> Kare PSD<small>katmanlı Photoshop</small>';
 };
 async function importPsd(file){
   await ensureAgPsd();
@@ -1965,7 +2124,7 @@ function loadScript(src){
   });
 }
 document.getElementById("expGif").onclick = async e => {
-  const btn = e.target;
+  const btn = e.currentTarget;
   btn.disabled = true; btn.textContent = "GIF hazırlanıyor…";
   try{
     const base = "https://cdnjs.cloudflare.com/ajax/libs/gif.js/0.2.0/";
@@ -1979,23 +2138,36 @@ document.getElementById("expGif").onclick = async e => {
     });
     gif.on("finished", blob => {
       download(URL.createObjectURL(blob), "animasyon.gif");
-      btn.disabled = false; btn.textContent = "GIF";
+      btn.disabled = false;
+      btn.innerHTML = '<span class="ms">gif_box</span> GIF<small>animasyonlu görüntü</small>';
     });
     gif.render();
   }catch(err){
     console.error(err);
     alert("GIF kitaplığına ulaşılamadı (ağ engeli olabilir). Sprite Sheet dışa aktarımı her zaman çalışır.");
-    btn.disabled = false; btn.textContent = "GIF";
+    btn.disabled = false; btn.innerHTML = '<span class="ms">gif_box</span> GIF<small>animasyonlu görüntü</small>';
   }
 };
 const JSZIP_URL = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
-document.getElementById("expSeq").onclick = async e => {
+/* ── Dışa aktarma merkezi ────────────────── */
+const expModal = document.getElementById("expModal");
+document.getElementById("expBtn").onclick = () => { expModal.hidden = false; };
+document.getElementById("expClose").onclick = () => { expModal.hidden = true; };
+expModal.addEventListener("click", e => {
+  if(e.target === expModal) expModal.hidden = true;
+  else if(e.target.closest("button")) expModal.hidden = true; // seçim yapılınca merkez kapanır
+});
+/* ── PNG Sekans (kendi penceresi) ────────── */
+const seqModal = document.getElementById("seqModal");
+document.getElementById("expSeq").onclick = () => { seqModal.hidden = false; };
+document.getElementById("seqClose").onclick = () => { seqModal.hidden = true; };
+seqModal.addEventListener("click", e => { if(e.target === seqModal) seqModal.hidden = true; });
+document.getElementById("seqGo").onclick = async e => {
   const btn = e.target;
-  const expand = confirm("Hold'lar açılarak dışa aktarılsın mı?\nTamam: her poz tekrar edilir (oynatma sırası)\nİptal: yalnızca benzersiz kareler");
-  let base = prompt("Dosya adı öneki:", "kare");
-  if(base === null) return;
-  base = (base.trim() || "kare").replace(/[^\w\-ğüşöçıĞÜŞÖÇİ]/g, "_");
-  btn.disabled = true; btn.textContent = "Sekans hazırlanıyor…";
+  const expand = document.getElementById("seqHold").checked;
+  const base = (document.getElementById("seqName").value.trim() || "kare")
+                 .replace(/[^\w\-ğüşöçıĞÜŞÖÇİ]/g, "_");
+  btn.disabled = true; btn.textContent = "Hazırlanıyor…";
   try{
     if(typeof JSZip === "undefined") await loadScript(JSZIP_URL);
     let list = [];
@@ -2010,11 +2182,12 @@ document.getElementById("expSeq").onclick = async e => {
     }
     const out = await zip.generateAsync({ type: "blob" });
     download(URL.createObjectURL(out), base + "_png_sekans.zip");
+    seqModal.hidden = true;
   }catch(err){
     console.error(err);
     alert("ZIP kitaplığına ulaşılamadı (ağ engeli olabilir). Sprite Sheet dışa aktarımı her zaman çalışır.");
   }
-  btn.disabled = false; btn.textContent = "PNG Sekans";
+  btn.disabled = false; btn.textContent = "ZIP indir";
 };
 
 /* ── Spine dışa aktarım ──────────────────── */
@@ -2113,7 +2286,7 @@ window.addEventListener("mousemove", e => {
                size: +document.getElementById("size").value,
                op: +document.getElementById("bOpacity").value };
     }
-    const size = Math.min(40, Math.max(1, Math.round(gest.size + (e.clientX - gest.x) * 0.15)));
+    const size = Math.min(120, Math.max(1, Math.round(gest.size + (e.clientX - gest.x) * 0.15)));
     const op = Math.min(100, Math.max(1, Math.round(gest.op - (e.clientY - gest.y) * 0.4)));
     document.getElementById("size").value = size;
     document.getElementById("sizeVal").textContent = size;
@@ -2214,8 +2387,9 @@ function abortStroke(){ // yanlışlıkla başlayan vuruşu geri sar (jest algı
 let multiTouch = null;
 const fingerCount = touches => // Apple Pencil'ı parmak saymayalım
   [...touches].filter(t => t.touchType !== "stylus").length;
-const stage = document.getElementById("stage");
-stage.addEventListener("touchstart", e => {
+const GESTURE_SKIP = "input,select,button,textarea,.modalBg,#jogPad,#curveCv,#timeline,.layerItem,.histItem,.viewSlider";
+document.addEventListener("touchstart", e => {
+  if(e.target.closest && e.target.closest(GESTURE_SKIP)) return;
   const n = fingerCount(e.touches);
   if(n >= 2){
     if(drawing && drawingType === "touch") abortStroke();
@@ -2231,13 +2405,13 @@ stage.addEventListener("touchstart", e => {
     e.preventDefault();
   }
 }, { passive: false });
-stage.addEventListener("touchmove", e => {
+document.addEventListener("touchmove", e => {
   if(!multiTouch) return;
   const dx = e.touches[0].clientX - multiTouch.x;
   const dy = e.touches[0].clientY - multiTouch.y;
   if(dx*dx + dy*dy > 144) multiTouch.moved = true; // 12px tolerans
 });
-stage.addEventListener("touchend", e => {
+document.addEventListener("touchend", e => {
   if(!multiTouch || fingerCount(e.touches) > 0) return;
   const mt = multiTouch; multiTouch = null;
   if(mt.moved || Date.now() - mt.t > 350) return; // vuruş değil, hareket/uzun basış
@@ -2982,6 +3156,8 @@ window.addEventListener("keydown", e => {
   if(!impModal.hidden){ if(e.key === "Escape") impClose(); return; }
   if(!shModal.hidden){ if(e.key === "Escape") shCloseFn(); return; }
   if(!spModal.hidden){ if(e.key === "Escape") spCloseFn(); return; }
+  if(!expModal.hidden){ if(e.key === "Escape") expModal.hidden = true; return; }
+  if(!seqModal.hidden){ if(e.key === "Escape") seqModal.hidden = true; return; }
   if(!sesModal.hidden){ if(e.key === "Escape") sesModal.hidden = true; return; }
   if(e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
   if(sel){
@@ -3005,11 +3181,12 @@ window.addEventListener("keydown", e => {
   else if(k === "p") setTool("poly");
   else if(k === "y") setTool("star");
   else if(k === "k") setTool("lasso");
+  else if(k === "f") toggleFlip();
   else if(k === "arrowleft"){ if(cur > 0){ cur--; markTimeline(); render(); } }
   else if(k === "arrowright"){ if(cur < frames.length - 1){ cur++; markTimeline(); render(); } }
   else if(k === " "){ e.preventDefault(); playing ? stopPlay() : startPlay(); }
   else if(k === "["){ const s = document.getElementById("size"); s.value = Math.max(1, +s.value - 1); s.dispatchEvent(new Event("input")); }
-  else if(k === "]"){ const s = document.getElementById("size"); s.value = Math.min(40, +s.value + 1); s.dispatchEvent(new Event("input")); }
+  else if(k === "]"){ const s = document.getElementById("size"); s.value = Math.min(120, +s.value + 1); s.dispatchEvent(new Event("input")); }
 });
 
 /* ── Başlat ──────────────────────────────── */
